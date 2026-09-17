@@ -1,11 +1,14 @@
 # Using notion-doc with other agents
 
-The skill has no Claude-specific magic. It is two plain files, plus an
-optional checker:
+Codex and Claude Code install notion-doc as a plugin — see the
+[README](../README.md#install). This page is for everything else.
+
+The skill has no agent-specific magic. It is two plain files, plus an optional
+checker:
 
 - [`skills/notion-doc/SKILL.md`](../skills/notion-doc/SKILL.md) — the rules: header layout, a block dictionary (which content goes in which Notion block), visual constraints
 - [`skills/notion-doc/template.html`](../skills/notion-doc/template.html) — the style canon: every block's CSS, Notion light/dark palette tokens, Prism syntax highlighting
-- [`skills/notion-doc/lint.py`](../skills/notion-doc/lint.py) — optional: checks a generated document against the canon. Standard library only, no Claude Code required
+- [`skills/notion-doc/lint.py`](../skills/notion-doc/lint.py) — optional: checks a generated document against the canon. Standard library only, no particular agent required
 
 Any agent that reads instruction files can use them. The recipe is always the same:
 
@@ -15,9 +18,10 @@ Any agent that reads instruction files can use them. The recipe is always the sa
 
 Below are ready-to-paste snippets per agent.
 
-## OpenAI Codex
+## Any agent that reads AGENTS.md
 
-Append to `AGENTS.md` at the repo root:
+Codex, Jules, Amp, and a growing list of others read `AGENTS.md` at the repo
+root. If you are not installing the plugin, append:
 
 ```markdown
 ## Document generation
@@ -27,6 +31,9 @@ as HTML or Markdown, first read `docs/notion-doc/SKILL.md` and follow it.
 For HTML output, copy `docs/notion-doc/template.html` as the starting point
 and only fill in content — do not write new CSS.
 ```
+
+For Codex specifically, the plugin install is better: it brings the lint hook
+with it and makes the skill available in every repo, not just this one.
 
 ## Cursor
 
@@ -46,7 +53,7 @@ new CSS.
 
 ## Gemini CLI
 
-Append to `GEMINI.md` at the repo root — same text as the Codex snippet above.
+Append to `GEMINI.md` at the repo root — same text as the `AGENTS.md` snippet above.
 
 ## Claude Code (without the plugin)
 
@@ -63,9 +70,8 @@ is not needed.
 
 ## Notes
 
-- `SKILL.md` is currently written in Korean. Every agent above handles that
-  fine, but a translated copy works just as well if you prefer — the rules,
-  not the language, are what matters.
 - The template loads Prism from cdnjs for code highlighting. If your
   environment blocks external scripts, delete the two `<script>` tags at the
   bottom of `template.html`; code blocks degrade to plain monospace.
+- `lint.py` exits 1 when it finds an error, so it drops straight into CI or a
+  pre-commit hook without a wrapper.

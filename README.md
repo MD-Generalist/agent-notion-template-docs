@@ -45,9 +45,63 @@ Dark mode follows the viewer's theme. When printed or exported to PDF, it switch
 
 ## Install
 
-### Claude Code
+notion-doc ships as a portable [Agent Plugin](https://agent-plugins.org) — one
+`plugin.json`, one `skills/` directory, one hook. Codex and Claude Code install
+the same files.
 
-Plugin installation is the recommended way to use notion-doc.
+### Codex
+
+Install it as a plugin:
+
+```bash
+codex plugin marketplace add heyman333/agent-notion-template-docs
+```
+
+Then pick `notion-doc` in the plugin browser:
+
+```text
+/plugins
+```
+
+Or drop the skill in by hand — it is a directory, nothing to build:
+
+```bash
+# this repo only
+mkdir -p .agents/skills && cp -r skills/notion-doc .agents/skills/
+
+# every project
+mkdir -p ~/.agents/skills && cp -r skills/notion-doc ~/.agents/skills/
+```
+
+Codex picks it up on the next session. Ask for a document and it applies on its
+own; to force it, type `$notion-doc`.
+
+If you install by hand rather than as a plugin, the lint hook does not come
+along. Wire it up once in `~/.codex/hooks.json` (or `<repo>/.codex/hooks.json`):
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/agent-notion-template-docs/hooks/notion-doc-lint.py"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The script reads the tool payload on stdin and takes no arguments. It
+understands both payload shapes — Claude Code's `file_path` and Codex's
+`apply_patch` body.
+
+### Claude Code
 
 ```text
 /plugin marketplace add heyman333/agent-notion-template-docs
@@ -100,9 +154,9 @@ cp -r skills/notion-doc <your-project>/.claude/skills/
 cp -r skills/notion-doc ~/.claude/skills/
 ```
 
-### Codex, Cursor, Gemini CLI, and others
+### Cursor, Gemini CLI, and others
 
-The skill consists of two plain files with no Claude-specific dependencies. Any agent that can read instruction files can use it.
+The skill is two plain files with no agent-specific dependencies. Any agent that can read instruction files can use it.
 
 See [Using with other agents](docs/using-with-other-agents.md) for ready-to-paste snippets for `AGENTS.md`, `.cursor/rules`, and `GEMINI.md`.
 
@@ -116,11 +170,12 @@ For example:
 - "Summarize this as a doc"
 - "Write a postmortem"
 
-You can also invoke it explicitly in Claude Code:
+You can also invoke it explicitly:
 
-```text
-/notion-doc:notion-doc
-```
+| Agent | Invoke |
+| --- | --- |
+| Codex | `$notion-doc` |
+| Claude Code | `/notion-doc:notion-doc` |
 
 ## Keeping the template intact
 
@@ -150,7 +205,7 @@ The linter catches:
 
 It uses only the Python standard library, so it can run in any agent or CI environment.
 
-When installed as a Claude Code plugin, a `PostToolUse` hook runs after HTML files are written and reports what needs to be fixed. If the document was created without the skill, it gives a short reminder to use it.
+When installed as a plugin, a `PostToolUse` hook runs after HTML files are written and reports what needs to be fixed. If the document was created without the skill, it gives a short reminder to use it. The same script serves both runtimes — it reads Codex's `apply_patch` payload and Claude Code's `file_path` payload.
 
 The hook is limited to document files and skips apps, framework templates, and build output. See the [gating tests](hooks/test_gating.py).
 
@@ -168,9 +223,18 @@ Open the HTML files in a browser to see the actual output.
 ## Repo layout
 
 ```text
+plugin.json            # portable manifest (Agent Plugins 1.0)
+hooks.json             # Codex PostToolUse hook
+AGENTS.md              # instructions for agents working on this repo
+
+.codex-plugin/
+  plugin.json          # Codex compatibility manifest
+.agents/
+  plugins/marketplace.json   # Codex marketplace catalog
+  skills/notion-doc          # symlink → skills/notion-doc
 .claude-plugin/
-  plugin.json          # plugin manifest
-  marketplace.json     # marketplace catalog
+  plugin.json          # Claude Code manifest
+  marketplace.json     # Claude Code marketplace catalog
 
 skills/notion-doc/
   SKILL.md             # block dictionary and visual rules
@@ -178,17 +242,20 @@ skills/notion-doc/
   lint.py              # checks documents against the template
 
 hooks/
-  hooks.json           # PostToolUse hook
-  notion-doc-lint.py
+  hooks.json           # Claude Code PostToolUse hook
+  notion-doc-lint.py   # the hook itself — reads both payload shapes
   test_gating.py       # tests hook behavior
 
 examples/              # rendered example documents
 
-scripts/               # screenshots and Notion sync checks
+scripts/               # screenshots, Notion sync, manifest consistency
 
 docs/
   using-with-other-agents.md
 ```
+
+The skill lives in exactly one place. `.agents/skills/notion-doc` is a symlink,
+so Codex and Claude Code can never drift apart.
 
 ## Staying in sync with Notion
 

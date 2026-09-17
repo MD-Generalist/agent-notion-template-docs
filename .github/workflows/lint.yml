@@ -1,7 +1,8 @@
 name: lint
 
 # 정본 자물쇠: 예제가 template.html 의 CSS 를 한 글자도 바꾸지 않았는지,
-# 훅이 반응해야 할 자리에서만 반응하는지 매 푸시마다 확인한다.
+# 훅이 반응해야 할 자리에서만 반응하는지, Codex·Claude Code 매니페스트가
+# 같은 버전을 말하는지 매 푸시마다 확인한다.
 
 on:
   push:
@@ -31,3 +32,6 @@ jobs:
 
       - name: 훅 게이팅 회귀
         run: python hooks/test_gating.py
+
+      - name: 매니페스트 정합성 (Codex · Claude Code)
+        run: python scripts/check_manifests.py

@@ -12,8 +12,15 @@ Two modes of operation:
 Apps, components, and build artifacts are left alone. On any exception it
 prints "{}" and exits 0 (fail-open) — the hook must never block work.
 
-Contract: stdin JSON (tool_name, tool_input.file_path) → stdout
-          hookSpecificOutput.additionalContext
+Contract: stdin JSON → stdout hookSpecificOutput.additionalContext.
+Runs under both hook runtimes, which disagree on how a write is reported:
+
+  Claude Code  tool_input.file_path  ("Write" / "Edit" / "MultiEdit")
+  Codex        tool_input.command    ("apply_patch" — paths live in the patch
+                                      body, relative to the payload's cwd)
+
+So paths are collected from both shapes rather than from one fixed key, and a
+single call may carry several files.
 """
 import importlib.util
 import json
@@ -40,6 +47,10 @@ APP_SIGNALS = (
 # As plain substrings, "padding-left" matches ng- and "max-width:" matches th:.
 APP_ATTR_RE = re.compile(
     r"\s(?:ng-[a-z]|th:[a-z]|v-(?:if|for|else|bind|model|on)\b|x-data\b|asp-[a-z])")
+
+# apply_patch bodies name their files in headers like "*** Add File: doc.html".
+PATCH_FILE_RE = re.compile(r"^\*\*\* (?:Add|Update|Move to) File: (.+)$", re.M)
+PATH_KEYS = ("file_path", "filePath", "path")
 
 
 def load_linter():
@@ -74,13 +85,31 @@ def build_message(path, findings):
     return "\n".join(lines)
 
 
-def run(data):
-    if data.get("tool_name") not in ("Write", "Edit", "MultiEdit"):
-        return None
-    raw = (data.get("tool_input") or {}).get("file_path")
-    if not raw:
-        return None
-    path = pathlib.Path(raw)
+def written_paths(data):
+    """Every file the call touched, whichever shape the runtime reported it in."""
+    tool_input = data.get("tool_input")
+    if isinstance(tool_input, str):          # some runtimes pass the raw command
+        tool_input = {"command": tool_input}
+    if not isinstance(tool_input, dict):
+        return []
+
+    raw = [tool_input[k] for k in PATH_KEYS if isinstance(tool_input.get(k), str)]
+    for value in tool_input.values():        # apply_patch / heredoc patch bodies
+        if isinstance(value, str) and "*** " in value:
+            raw += PATCH_FILE_RE.findall(value)
+
+    cwd = pathlib.Path(data.get("cwd") or ".")
+    out = []
+    for item in raw:
+        path = pathlib.Path(item.strip())
+        if not path.is_absolute():
+            path = cwd / path
+        if path not in out:
+            out.append(path)
+    return out
+
+
+def check_path(path):
     if path.suffix.lower() not in (".html", ".htm"):
         return None
     if SKIP_PARTS & set(path.parts):
@@ -102,6 +131,11 @@ def run(data):
     if not any(s == "error" for s, _, _ in findings):
         return None
     return build_message(path, findings)
+
+
+def run(data):
+    messages = [m for m in (check_path(p) for p in written_paths(data)) if m]
+    return "\n\n".join(messages) or None
 
 
 def main():

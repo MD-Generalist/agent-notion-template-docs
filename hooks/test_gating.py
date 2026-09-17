@@ -34,12 +34,24 @@ CASES = [
 ]
 
 
-def fire(file_path, tool="Write"):
-    payload = json.dumps({"tool_name": tool, "tool_input": {"file_path": str(file_path)}})
-    r = subprocess.run([sys.executable, str(HOOK)], input=payload,
+def send(payload):
+    r = subprocess.run([sys.executable, str(HOOK)], input=json.dumps(payload),
                        capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, f"훅은 항상 0 으로 끝나야 한다: {r.returncode}"
     return json.loads(r.stdout or "{}")
+
+
+def fire(file_path, tool="Write"):
+    """Claude Code 모양: tool_input.file_path"""
+    return send({"tool_name": tool, "tool_input": {"file_path": str(file_path)}})
+
+
+def fire_patch(*rel_paths, cwd=None):
+    """Codex 모양: apply_patch 본문에서 cwd 기준 상대 경로를 읽어낸다."""
+    body = "*** Begin Patch\n" + "".join(
+        f"*** Update File: {p}\n@@\n+<p>x</p>\n" for p in rel_paths) + "*** End Patch"
+    return send({"tool_name": "apply_patch", "cwd": str(cwd or ROOT),
+                 "tool_input": {"command": body}})
 
 
 def main():
@@ -64,6 +76,19 @@ def main():
             failed += not ok
             print(f"{'ok  ' if ok else 'FAIL'}  {name}: "
                   f"{'말함' if spoke else '침묵'} (기대 {'말함' if should_speak else '침묵'})")
+
+    # Codex 의 apply_patch 는 파일 경로를 패치 본문에만 싣는다. 한 번에 여러 개도 온다.
+    for name, rels, should_speak in [
+        ("apply_patch · 정본 문서", ["examples/sample.html"], False),
+        ("apply_patch · skill 미적용", ["examples/before.html"], True),
+        ("apply_patch · 여러 파일", ["examples/sample.html", "examples/before.html"], True),
+        ("apply_patch · 비 HTML", ["README.md"], False),
+    ]:
+        spoke = bool(fire_patch(*rels))
+        ok = spoke == should_speak
+        failed += not ok
+        print(f"{'ok  ' if ok else 'FAIL'}  {name}: "
+              f"{'말함' if spoke else '침묵'} (기대 {'말함' if should_speak else '침묵'})")
 
     # 비 HTML·빌드 경로·깨진 입력은 무조건 침묵
     for name, path in [("비 HTML", ROOT / "README.md"),

@@ -45,9 +45,62 @@ Notion에서 자주 사용하는 블록과 스타일을 HTML로 구현해 두었
 
 ## 설치
 
-### Claude Code
+notion-doc은 [Agent Plugin](https://agent-plugins.org) 표준을 따르는 플러그인입니다.
+`plugin.json` 하나, `skills/` 하나, 훅 하나로 구성되어 있고 Codex와 Claude Code가
+같은 파일을 설치합니다.
 
-플러그인으로 설치하는 방법을 권장합니다.
+### Codex
+
+플러그인으로 설치합니다.
+
+```bash
+codex plugin marketplace add heyman333/agent-notion-template-docs
+```
+
+그다음 플러그인 브라우저에서 `notion-doc`을 설치합니다.
+
+```text
+/plugins
+```
+
+디렉터리를 복사해도 됩니다. 빌드 과정은 없습니다.
+
+```bash
+# 이 저장소에서만
+mkdir -p .agents/skills && cp -r skills/notion-doc .agents/skills/
+
+# 모든 프로젝트에서
+mkdir -p ~/.agents/skills && cp -r skills/notion-doc ~/.agents/skills/
+```
+
+다음 세션부터 인식됩니다. 문서를 요청하면 자동으로 적용되고, 직접 부르려면
+`$notion-doc`을 입력합니다.
+
+플러그인이 아니라 직접 복사해서 설치하면 검사 훅은 따라오지 않습니다.
+`~/.codex/hooks.json`(또는 `<repo>/.codex/hooks.json`)에 한 번 등록해 두세요.
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/agent-notion-template-docs/hooks/notion-doc-lint.py"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+훅 스크립트는 stdin으로 들어오는 툴 페이로드를 읽고 인자를 받지 않습니다.
+Codex의 `apply_patch` 형태와 Claude Code의 `file_path` 형태를 모두 이해합니다.
+
+### Claude Code
 
 ```text
 /plugin marketplace add heyman333/agent-notion-template-docs
@@ -100,9 +153,9 @@ cp -r skills/notion-doc <your-project>/.claude/skills/
 cp -r skills/notion-doc ~/.claude/skills/
 ```
 
-### Codex, Cursor, Gemini CLI 등
+### Cursor, Gemini CLI 등
 
-`notion-doc`은 Claude Code에 종속된 기능 없이 파일 두 개로 구성되어 있습니다.  
+`notion-doc`은 특정 에이전트에 종속된 기능 없이 파일 두 개로 구성되어 있습니다.  
 지시 파일을 읽을 수 있는 에이전트라면 다른 환경에서도 사용할 수 있습니다.
 
 에이전트별 설정 방법은 [다른 에이전트에서 쓰기](docs/using-with-other-agents.md)를 참고하세요.
@@ -117,11 +170,12 @@ cp -r skills/notion-doc ~/.claude/skills/
 - "보고서 작성해줘"
 - "포스트모템 만들어줘"
 
-Claude Code에서 직접 실행할 수도 있습니다.
+직접 호출할 수도 있습니다.
 
-```text
-/notion-doc:notion-doc
-```
+| 에이전트 | 호출 |
+| --- | --- |
+| Codex | `$notion-doc` |
+| Claude Code | `/notion-doc:notion-doc` |
 
 ## 문서 검사
 
@@ -148,7 +202,7 @@ python3 skills/notion-doc/lint.py 내문서.html
 
 표준 라이브러리만 사용하기 때문에 다른 에이전트나 CI에서도 그대로 실행할 수 있습니다.
 
-플러그인으로 설치했다면 이 과정은 자동으로 동작합니다. HTML을 저장할 때마다 `PostToolUse` 훅이 검사하고, 문제가 있으면 어떤 부분이 어긋났는지 에이전트에게 전달합니다. 애플리케이션 코드나 프레임워크 템플릿, 빌드 결과물에는 동작하지 않습니다.
+플러그인으로 설치했다면 이 과정은 자동으로 동작합니다. HTML을 저장할 때마다 `PostToolUse` 훅이 검사하고, 문제가 있으면 어떤 부분이 어긋났는지 에이전트에게 전달합니다. 훅 스크립트는 하나로 두 런타임을 모두 처리합니다 — Codex의 `apply_patch` 페이로드와 Claude Code의 `file_path` 페이로드를 함께 읽습니다. 애플리케이션 코드나 프레임워크 템플릿, 빌드 결과물에는 동작하지 않습니다.
 
 ## 예시
 
@@ -164,9 +218,18 @@ python3 skills/notion-doc/lint.py 내문서.html
 ## 구조
 
 ```text
+plugin.json            # 포터블 매니페스트 (Agent Plugins 1.0)
+hooks.json             # Codex PostToolUse 훅
+AGENTS.md              # 이 저장소를 고칠 에이전트를 위한 지시문
+
+.codex-plugin/
+  plugin.json          # Codex 호환 매니페스트
+.agents/
+  plugins/marketplace.json   # Codex 마켓플레이스 카탈로그
+  skills/notion-doc          # skills/notion-doc 로의 심볼릭 링크
 .claude-plugin/
-  plugin.json          # 플러그인 매니페스트
-  marketplace.json     # 마켓플레이스 카탈로그
+  plugin.json          # Claude Code 매니페스트
+  marketplace.json     # Claude Code 마켓플레이스 카탈로그
 
 skills/notion-doc/
   SKILL.md             # 블록과 사용 규칙
@@ -174,17 +237,20 @@ skills/notion-doc/
   lint.py              # 템플릿을 지켰는지 확인하는 검증기
 
 hooks/
-  hooks.json           # HTML을 저장할 때 검사를 실행
-  notion-doc-lint.py
+  hooks.json           # Claude Code PostToolUse 훅
+  notion-doc-lint.py   # 훅 본체 — 두 페이로드 형식을 모두 읽는다
   test_gating.py
 
 examples/              # 예시 문서
 
-scripts/               # 스크린샷 촬영, Notion 변경 감지
+scripts/               # 스크린샷 촬영, Notion 변경 감지, 매니페스트 정합성
 
 docs/
   using-with-other-agents.md
 ```
+
+스킬 파일은 한 곳에만 있습니다. `.agents/skills/notion-doc`이 심볼릭 링크라
+Codex와 Claude Code의 스킬이 갈라질 수 없습니다.
 
 ## Notion과 동기화
 

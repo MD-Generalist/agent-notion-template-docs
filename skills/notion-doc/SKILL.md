@@ -76,7 +76,8 @@ python3 <skill directory>/lint.py doc.html
 
 ## 5. Interaction with other skills
 
-- When publishing as an Artifact, also load `artifact-design` as required, but
-  **this skill's style tokens take precedence** (take only the technical
-  requirements — responsiveness, dark mode — from artifact-design)
-- If charts are included, follow the `dataviz` skill's color and mark rules, but keep the layout inside this template
+- If another skill or host also governs presentation (a design-system skill, an
+  artifact/preview host), take only its technical requirements — responsiveness,
+  dark mode, sandbox constraints. **This skill's style tokens take precedence**
+- If charts are included, follow whatever chart skill is available for color and
+  mark choices, but keep the layout inside this template
