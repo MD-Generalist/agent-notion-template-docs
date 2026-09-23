@@ -2,6 +2,8 @@
 
 > Make your AI agent write documents like Notion — not like an AI.
 
+![notion-doc](docs/hero.jpg)
+
 [![notion-sync](https://github.com/heyman333/agent-notion-template-docs/actions/workflows/notion-sync.yml/badge.svg)](https://github.com/heyman333/agent-notion-template-docs/actions/workflows/notion-sync.yml)
 
 [한국어](README.ko.md)
